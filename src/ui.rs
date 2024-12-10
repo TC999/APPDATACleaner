@@ -70,6 +70,7 @@ impl AppDataCleaner {
 }
 
 // 添加文件夹的显示逻辑
+
 impl eframe::App for AppDataCleaner {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.setup_custom_fonts(ctx);
@@ -168,7 +169,9 @@ impl eframe::App for AppDataCleaner {
                                     });
                                 }
                             });
-                        is_expanded = header_response.response.hovered();
+
+                        // 使用 header_response 来检查是否展开
+                        is_expanded = header_response.header_response.hovered();
 
                         // 如果当前文件夹有子文件夹，显示一个展开/折叠按钮
                         if !self.ignored_folders.contains(folder) {
@@ -184,6 +187,13 @@ impl eframe::App for AppDataCleaner {
                                 ignore::save_ignored_folders(&self.ignored_folders);
                                 logger::log_info(&format!("文件夹 '{}' 已被忽略", folder));
                             }
+                        } else {
+                            ui.add_enabled(false, |ui: &mut egui::Ui| {
+                                let response1 = ui.button("彻底删除");
+                                let response2 = ui.button("移动");
+                                let response3 = ui.button("忽略");
+                                response1 | response2 | response3 // 返回合并的 Response
+                            });
                         }
                         if ui.button("打开").clicked() {
                             if let Some(base_path) =
