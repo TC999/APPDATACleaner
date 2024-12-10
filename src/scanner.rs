@@ -1,7 +1,8 @@
 use crate::logger;
 use dirs_next as dirs;
 use std::sync::mpsc::Sender;
-use std::{fs, path::PathBuf}; // 引入日志模块
+use std::thread;
+use std::{fs, path::PathBuf}; // 引入日志模块 // 导入 std::thread
 
 pub fn scan_appdata(tx: Sender<(String, u64)>, folder_type: &str) {
     println!("开始扫描 {} 类型的文件夹", folder_type);

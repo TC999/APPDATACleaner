@@ -10,6 +10,7 @@ use crate::utils;
 use eframe::egui::{self, CollapsingHeader, Grid, ScrollArea};
 use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender};
+use std::thread; // 导入 std::thread
 
 pub struct AppDataCleaner {
     is_scanning: bool,
@@ -66,6 +67,14 @@ impl AppDataCleaner {
             .insert(egui::FontFamily::Monospace, vec!["custom_font".to_owned()]);
 
         ctx.set_fonts(fonts);
+    }
+    fn load_subfolders(&self, folder: &str) -> Vec<String> {
+        // 模拟返回一些子文件夹的名称，实际可以根据扫描结果来返回
+        vec![
+            "Subfolder 1".to_string(),
+            "Subfolder 2".to_string(),
+            "Subfolder 3".to_string(),
+        ]
     }
 }
 
@@ -161,7 +170,7 @@ impl eframe::App for AppDataCleaner {
                                 ui.label(format!("大小: {}", utils::format_size(*size)));
 
                                 // 动态加载子文件夹
-                                let subfolders = self.load_subfolders(folder); // 动态加载子文件夹
+                                let subfolders = self.load_subfolders(folder); // 调用 AppDataCleaner 中的方法
                                 for subfolder in subfolders {
                                     ui.horizontal(|ui| {
                                         ui.label("→"); // 符号表示子文件夹
@@ -186,6 +195,13 @@ impl eframe::App for AppDataCleaner {
                                 ignore::save_ignored_folders(&self.ignored_folders);
                                 logger::log_info(&format!("文件夹 '{}' 已被忽略", folder));
                             }
+                        } else {
+                            ui.add_enabled(false, |ui: &mut egui::Ui| {
+                                let response1 = ui.button("彻底删除");
+                                let response2 = ui.button("移动");
+                                let response3 = ui.button("忽略");
+                                response1 | response2 | response3 // 返回合并的 Response
+                            });
                         }
                         if ui.button("打开").clicked() {
                             if let Some(base_path) =
@@ -210,15 +226,5 @@ impl eframe::App for AppDataCleaner {
 
         // 显示移动窗口
         self.move_module.show_move_window(ctx);
-    }
-
-    // 动态加载子文件夹
-    fn load_subfolders(&self, folder: &str) -> Vec<String> {
-        // 实际加载子文件夹，实际应用中应从扫描结果中返回
-        vec![
-            "Subfolder 1".to_string(),
-            "Subfolder 2".to_string(),
-            "Subfolder 3".to_string(),
-        ]
     }
 }
