@@ -7,7 +7,7 @@ use crate::move_module; // 导入移动模块
 use crate::open;
 use crate::scanner;
 use crate::utils;
-use eframe::egui::{self, Grid, ScrollArea};
+use eframe::egui::{self, CollapsingHeader, Grid, ScrollArea};
 use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -69,19 +69,10 @@ impl AppDataCleaner {
     }
 }
 
+// 添加文件夹的显示逻辑
 impl eframe::App for AppDataCleaner {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.setup_custom_fonts(ctx);
-
-        if self.is_logging_enabled != self.previous_logging_state {
-            logger::init_logger(self.is_logging_enabled); // 初始化日志系统
-            if self.is_logging_enabled {
-                logger::log_info("日志系统已启用");
-            } else {
-                logger::log_info("日志系统已禁用");
-            }
-            self.previous_logging_state = self.is_logging_enabled; // 更新状态
-        }
 
         // 删除确认弹窗逻辑
         if let Some((folder_name, _)) = &self.confirm_delete {
@@ -161,18 +152,25 @@ impl eframe::App for AppDataCleaner {
                     ui.end_row();
 
                     for (folder, size) in &self.folder_data {
-                        if self.ignored_folders.contains(folder) {
-                            ui.add_enabled(
-                                false,
-                                egui::Label::new(
-                                    egui::RichText::new(folder).color(egui::Color32::GRAY),
-                                ),
-                            );
-                        } else {
-                            ui.label(folder);
-                        }
-                        ui.label(utils::format_size(*size));
+                        // 创建折叠面板（CollapsingHeader）用于展示子文件夹
+                        let mut is_expanded = false; // 这个变量控制折叠/展开状态
+                        let header_response = CollapsingHeader::new(folder)
+                            .default_open(true)
+                            .show(ui, |ui| {
+                                ui.label(format!("大小: {}", utils::format_size(*size)));
 
+                                // 显示子文件夹（此部分模拟为静态数据，实际可以动态加载）
+                                let subfolders = vec!["Subfolder 1", "Subfolder 2", "Subfolder 3"];
+                                for subfolder in subfolders {
+                                    ui.horizontal(|ui| {
+                                        ui.label("→"); // 符号表示子文件夹
+                                        ui.label(subfolder);
+                                    });
+                                }
+                            });
+                        is_expanded = header_response.response.hovered();
+
+                        // 如果当前文件夹有子文件夹，显示一个展开/折叠按钮
                         if !self.ignored_folders.contains(folder) {
                             if ui.button("彻底删除").clicked() {
                                 self.confirm_delete = Some((folder.clone(), false));
@@ -186,13 +184,6 @@ impl eframe::App for AppDataCleaner {
                                 ignore::save_ignored_folders(&self.ignored_folders);
                                 logger::log_info(&format!("文件夹 '{}' 已被忽略", folder));
                             }
-                        } else {
-                            ui.add_enabled(false, |ui: &mut egui::Ui| {
-                                let response1 = ui.button("彻底删除");
-                                let response2 = ui.button("移动");
-                                let response3 = ui.button("忽略");
-                                response1 | response2 | response3 // 返回合并的 Response
-                            });
                         }
                         if ui.button("打开").clicked() {
                             if let Some(base_path) =
