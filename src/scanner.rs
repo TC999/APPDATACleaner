@@ -1,10 +1,7 @@
-use std::sync::mpsc::Sender;
-use std::thread;
-use std::{fs, path::PathBuf};
-use std::path::Path;
-
+use crate::logger;
 use dirs_next as dirs;
-use crate::logger; // 引入日志模块
+use std::sync::mpsc::Sender;
+use std::{fs, path::PathBuf}; // 引入日志模块
 
 pub fn scan_appdata(tx: Sender<(String, u64)>, folder_type: &str) {
     println!("开始扫描 {} 类型的文件夹", folder_type);
@@ -30,6 +27,9 @@ pub fn scan_appdata(tx: Sender<(String, u64)>, folder_type: &str) {
                             let size = calculate_folder_size(&entry.path());
                             // 发送文件夹大小数据
                             tx.send((folder_name, size)).unwrap();
+
+                            // 扫描子文件夹
+                            scan_subfolders(&entry.path(), &tx);
                         }
                     }
                 }
@@ -38,8 +38,29 @@ pub fn scan_appdata(tx: Sender<(String, u64)>, folder_type: &str) {
     }
 }
 
+// 递归扫描子文件夹
+fn scan_subfolders(path: &PathBuf, tx: &Sender<(String, u64)>) {
+    if path.is_dir() {
+        if let Ok(entries) = fs::read_dir(path) {
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
+                    let folder_name = entry_path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string();
+                    let size = calculate_folder_size(&entry_path);
+                    // 发送子文件夹的大小数据
+                    tx.send((folder_name, size)).unwrap();
+                }
+            }
+        }
+    }
+}
+
 // 计算文件夹的总大小（递归）
-fn calculate_folder_size(folder: &Path) -> u64 {
+fn calculate_folder_size(folder: &PathBuf) -> u64 {
     let mut size = 0;
 
     // 遍历文件夹中的所有条目

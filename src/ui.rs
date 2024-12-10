@@ -153,15 +153,15 @@ impl eframe::App for AppDataCleaner {
                     ui.end_row();
 
                     for (folder, size) in &self.folder_data {
-                        // 创建折叠面板（CollapsingHeader）用于展示子文件夹
-                        let mut is_expanded = false; // 这个变量控制折叠/展开状态
+                        // 使用折叠面板显示子文件夹
+                        let mut is_expanded = false;
                         let header_response = CollapsingHeader::new(folder)
                             .default_open(true)
                             .show(ui, |ui| {
                                 ui.label(format!("大小: {}", utils::format_size(*size)));
 
-                                // 显示子文件夹（此部分模拟为静态数据，实际可以动态加载）
-                                let subfolders = vec!["Subfolder 1", "Subfolder 2", "Subfolder 3"];
+                                // 动态加载子文件夹
+                                let subfolders = self.load_subfolders(folder); // 动态加载子文件夹
                                 for subfolder in subfolders {
                                     ui.horizontal(|ui| {
                                         ui.label("→"); // 符号表示子文件夹
@@ -170,10 +170,9 @@ impl eframe::App for AppDataCleaner {
                                 }
                             });
 
-                        // 使用 header_response 来检查是否展开
                         is_expanded = header_response.header_response.hovered();
 
-                        // 如果当前文件夹有子文件夹，显示一个展开/折叠按钮
+                        // 显示操作按钮
                         if !self.ignored_folders.contains(folder) {
                             if ui.button("彻底删除").clicked() {
                                 self.confirm_delete = Some((folder.clone(), false));
@@ -187,13 +186,6 @@ impl eframe::App for AppDataCleaner {
                                 ignore::save_ignored_folders(&self.ignored_folders);
                                 logger::log_info(&format!("文件夹 '{}' 已被忽略", folder));
                             }
-                        } else {
-                            ui.add_enabled(false, |ui: &mut egui::Ui| {
-                                let response1 = ui.button("彻底删除");
-                                let response2 = ui.button("移动");
-                                let response3 = ui.button("忽略");
-                                response1 | response2 | response3 // 返回合并的 Response
-                            });
                         }
                         if ui.button("打开").clicked() {
                             if let Some(base_path) =
@@ -218,5 +210,15 @@ impl eframe::App for AppDataCleaner {
 
         // 显示移动窗口
         self.move_module.show_move_window(ctx);
+    }
+
+    // 动态加载子文件夹
+    fn load_subfolders(&self, folder: &str) -> Vec<String> {
+        // 实际加载子文件夹，实际应用中应从扫描结果中返回
+        vec![
+            "Subfolder 1".to_string(),
+            "Subfolder 2".to_string(),
+            "Subfolder 3".to_string(),
+        ]
     }
 }
