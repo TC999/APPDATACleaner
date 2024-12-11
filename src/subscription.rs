@@ -26,23 +26,26 @@ impl Default for SubscriptionManager {
 impl SubscriptionManager {
     pub fn show_window(&mut self, ctx: &egui::Context) {
         if self.is_open {
+            let mut start_download = false;
+
             egui::Window::new("订阅规则")
                 .open(&mut self.is_open)
                 .show(ctx, |ui| {
-                    self.render_controls(ui);
+                    start_download = self.render_controls(ui);
                     self.render_subscriptions(ui);
                     self.render_download_status(ui);
                 });
 
             // 在 UI 渲染完成后处理状态更新
-            if self.start_download_request {
+            if start_download {
                 self.handle_start_download();
-                self.start_download_request = false;
             }
         }
     }
 
-    fn render_controls(&mut self, ui: &mut egui::Ui) {
+    fn render_controls(&mut self, ui: &mut egui::Ui) -> bool {
+        let mut start_download = false;
+
         ui.horizontal(|ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut self.download_url).hint_text("请输入规则下载链接"),
@@ -50,7 +53,7 @@ impl SubscriptionManager {
 
             if ui.button("下载规则").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter))
             {
-                self.start_download_request = true;
+                start_download = true;
             }
 
             if ui.button("从文件导入").clicked() {
@@ -58,6 +61,8 @@ impl SubscriptionManager {
             }
         });
         ui.separator();
+
+        start_download
     }
 
     fn render_subscriptions(&mut self, ui: &mut egui::Ui) {
