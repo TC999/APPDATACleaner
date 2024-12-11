@@ -23,24 +23,27 @@ impl Default for SubscriptionManager {
 
 impl SubscriptionManager {
     pub fn show_window(&mut self, ctx: &egui::Context) {
-        let mut is_open = self.is_open;
-        if is_open {
+        if self.is_open {
             egui::Window::new("订阅规则")
-                .open(&mut is_open)
+                .open(&mut self.is_open)
                 .show(ctx, |ui| {
                     self.show_controls(ui);
                     self.show_subscriptions(ui);
                     self.show_download_status(ui);
                 });
         }
-        //self.is_open = is_open;
     }
 
     fn show_controls(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui.button("下载规则").clicked() {
-                self.start_download_dialog(ui);
+            ui.text_edit_singleline(&mut self.download_url)
+                .hint_text("请输入规则下载链接");
+
+            if ui.button("下载规则").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter))
+            {
+                self.start_download();
             }
+
             if ui.button("从文件导入").clicked() {
                 self.import_from_file();
             }
@@ -83,17 +86,17 @@ impl SubscriptionManager {
         }
     }
 
-    fn start_download_dialog(&mut self, ui: &mut egui::Ui) {
-        ui.label("请输入规则下载链接：");
-        ui.text_edit_singleline(&mut self.download_url);
-
-        if ui.button("确定").clicked() {
-            self.download_progress = Some(0.0);
-            self.download_status = Some("开始下载...".to_string());
-
-            // 模拟异步下载逻辑
-            self.simulate_download();
+    fn start_download(&mut self) {
+        if self.download_url.is_empty() {
+            self.download_status = Some("请输入有效的下载链接".to_string());
+            return;
         }
+
+        self.download_progress = Some(0.0);
+        self.download_status = Some("开始下载...".to_string());
+
+        // 模拟异步下载逻辑
+        self.simulate_download();
     }
 
     fn simulate_download(&mut self) {
