@@ -25,13 +25,13 @@ impl Default for SubscriptionManager {
 
 impl SubscriptionManager {
     pub fn show_window(&mut self, ctx: &egui::Context) {
-        if self.is_open {
-            // 获取 mutable reference to the ui
+        let mut is_open = self.is_open;
+        if is_open {
             egui::Window::new("订阅规则")
-                .open(&mut self.is_open)
+                .open(&mut is_open)
                 .show(ctx, |ui| {
-                    // 调用 render_controls 方法时传入 ui 参数
-                    let start_download = self.render_controls(ui);
+                    // 直接在闭包内部渲染控件
+                    let start_download = self.render_controls(ui); // 传递 ui
                     self.render_subscriptions(ui);
                     self.render_download_status(ui);
 
@@ -41,6 +41,7 @@ impl SubscriptionManager {
                     }
                 });
         }
+        self.is_open = is_open;
     }
 
     fn render_controls(&mut self, ui: &mut egui::Ui) -> bool {
