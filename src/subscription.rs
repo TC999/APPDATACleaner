@@ -26,12 +26,12 @@ impl Default for SubscriptionManager {
 impl SubscriptionManager {
     pub fn show_window(&mut self, ctx: &egui::Context) {
         if self.is_open {
-            let mut start_download = false;
+            // 在闭包外部处理 start_download 的状态
+            let start_download = self.render_controls(ctx);
 
             egui::Window::new("订阅规则")
                 .open(&mut self.is_open)
                 .show(ctx, |ui| {
-                    start_download = self.render_controls(ui);
                     self.render_subscriptions(ui);
                     self.render_download_status(ui);
                 });
