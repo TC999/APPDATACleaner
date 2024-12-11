@@ -6,6 +6,7 @@ mod logger; // 引入日志模块
 mod move_module; // 移动文件夹，使用 mklink 指令
 mod open; // 调用资源管理器打开文件夹
 mod scanner; // 引入扫盘模块
+mod subscription;
 mod ui; // 引入 ui 模块
 mod utils; // 文件夹大小计算模块
 mod yaml_loader; // 文件描述

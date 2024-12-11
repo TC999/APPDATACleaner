@@ -11,6 +11,7 @@ use crate::yaml_loader::FolderDescriptions;
 use eframe::egui::{self, Grid, ScrollArea};
 use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender};
+use subscription::SubscriptionManager;
 
 pub struct AppDataCleaner {
     is_scanning: bool,
@@ -27,6 +28,7 @@ pub struct AppDataCleaner {
     move_module: move_module::MoveModule, // 移动模块实例
     folder_descriptions: Option<FolderDescriptions>,
     yaml_error_logged: bool, // 新增字段，用于标记是否已经记录过错误
+    subscription_manager: SubscriptionManager,
 }
 
 impl Default for AppDataCleaner {
@@ -47,6 +49,7 @@ impl Default for AppDataCleaner {
             move_module: Default::default(),
             folder_descriptions: None,
             yaml_error_logged: false, // 初始时假定未记录过错误
+            subscription_manager: Default::default(),
         }
     }
 }
@@ -81,7 +84,9 @@ impl eframe::App for AppDataCleaner {
         // 加载描述文件
         if self.folder_descriptions.is_none() {
             match FolderDescriptions::load_from_yaml("folders_description.yaml") {
-                Ok(descriptions) => self.folder_descriptions = Some(descriptions),
+                Ok(descriptions) => {
+                    self.folder_descriptions = descriptions.into_iter().next();
+                }
                 Err(e) => {
                     if !self.yaml_error_logged {
                         eprintln!("加载 YAML 文件失败: {}", e);
@@ -131,6 +136,9 @@ impl eframe::App for AppDataCleaner {
             if ui.button("关于").clicked() {
                 self.show_about_window = true; // 打开关于窗口
                 ui.close_menu();
+            }
+            if ui.button("订阅").clicked() {
+                self.subscription_manager.is_open = true;
             }
 
             ui.separator();
@@ -194,9 +202,10 @@ impl eframe::App for AppDataCleaner {
                         ui.label(utils::format_size(*size));
 
                         // 读取描述信息并显示
-                        let description = self.folder_descriptions.as_ref().and_then(|desc| {
-                            desc.get_description(folder, &self.selected_appdata_folder)
-                        });
+                        let description = self
+                            .folder_descriptions
+                            .as_ref()
+                            .and_then(|desc| desc.get_description(folder));
                         if let Some(desc) = description {
                             ui.label(desc);
                         } else {
@@ -247,5 +256,7 @@ impl eframe::App for AppDataCleaner {
 
         // 显示移动窗口
         self.move_module.show_move_window(ctx);
+        // 显示订阅规则窗口
+        self.subscription_manager.show_window(ctx);
     }
 }
