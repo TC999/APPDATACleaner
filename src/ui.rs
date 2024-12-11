@@ -6,12 +6,12 @@ use crate::logger; // 导入 logger 模块
 use crate::move_module; // 导入移动模块
 use crate::open;
 use crate::scanner;
+use crate::subscription::SubscriptionManager;
 use crate::utils;
 use crate::yaml_loader::FolderDescriptions;
 use eframe::egui::{self, Grid, ScrollArea};
 use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender};
-use subscription::SubscriptionManager;
 
 pub struct AppDataCleaner {
     is_scanning: bool,
