@@ -23,15 +23,17 @@ impl Default for SubscriptionManager {
 
 impl SubscriptionManager {
     pub fn show_window(&mut self, ctx: &egui::Context) {
-        if self.is_open {
+        let mut is_open = self.is_open;
+        if is_open {
             egui::Window::new("订阅规则")
-                .open(&mut self.is_open)
+                .open(&mut is_open)
                 .show(ctx, |ui| {
                     self.show_controls(ui);
                     self.show_subscriptions(ui);
                     self.show_download_status(ui);
                 });
         }
+        self.is_open = is_open;
     }
 
     fn show_controls(&mut self, ui: &mut egui::Ui) {
