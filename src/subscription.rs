@@ -7,6 +7,7 @@ pub struct SubscriptionManager {
     pub download_progress: Option<f32>,         // 下载进度
     pub download_status: Option<String>,        // 下载状态信息
     pub download_url: String,                   // 当前输入的下载链接
+    pub start_download: bool,                   // 标志是否触发下载
 }
 
 impl Default for SubscriptionManager {
@@ -17,6 +18,7 @@ impl Default for SubscriptionManager {
             download_progress: None,
             download_status: None,
             download_url: String::new(),
+            start_download: false,
         }
     }
 }
@@ -27,30 +29,31 @@ impl SubscriptionManager {
             egui::Window::new("订阅规则")
                 .open(&mut self.is_open)
                 .show(ctx, |ui| {
-                    let mut start_download = false;
-                    self.show_controls(ui, &mut start_download);
+                    self.show_controls(ui);
                     self.show_subscriptions(ui);
                     self.show_download_status(ui);
-
-                    if start_download {
-                        self.start_download();
-                    }
                 });
+
+            // 在 UI 渲染完成后处理状态更新
+            if self.start_download {
+                self.start_download();
+                self.start_download = false;
+            }
         }
     }
 
-    fn show_controls(&mut self, ui: &mut egui::Ui, start_download: &mut bool) {
+    fn show_controls(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut self.download_url).hint_text("请输入规则下载链接"),
             );
 
             if ui.button("下载规则").clicked() {
-                *start_download = true;
+                self.start_download = true;
             }
 
             if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                *start_download = true;
+                self.start_download = true;
             }
 
             if ui.button("从文件导入").clicked() {
