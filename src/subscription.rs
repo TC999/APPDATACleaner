@@ -27,21 +27,30 @@ impl SubscriptionManager {
             egui::Window::new("订阅规则")
                 .open(&mut self.is_open)
                 .show(ctx, |ui| {
-                    self.show_controls(ui);
+                    let mut start_download = false;
+                    self.show_controls(ui, &mut start_download);
                     self.show_subscriptions(ui);
                     self.show_download_status(ui);
+
+                    if start_download {
+                        self.start_download();
+                    }
                 });
         }
     }
 
-    fn show_controls(&mut self, ui: &mut egui::Ui) {
+    fn show_controls(&mut self, ui: &mut egui::Ui, start_download: &mut bool) {
         ui.horizontal(|ui| {
-            ui.text_edit_singleline(&mut self.download_url)
-                .hint_text("请输入规则下载链接");
+            ui.add(
+                egui::TextEdit::singleline(&mut self.download_url).hint_text("请输入规则下载链接"),
+            );
 
-            if ui.button("下载规则").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter))
-            {
-                self.start_download();
+            if ui.button("下载规则").clicked() {
+                *start_download = true;
+            }
+
+            if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                *start_download = true;
             }
 
             if ui.button("从文件导入").clicked() {
