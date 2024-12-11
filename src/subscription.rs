@@ -33,7 +33,7 @@ impl SubscriptionManager {
                     self.show_download_status(ui);
                 });
         }
-        self.is_open = is_open;
+        //self.is_open = is_open;
     }
 
     fn show_controls(&mut self, ui: &mut egui::Ui) {
