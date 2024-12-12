@@ -1,4 +1,3 @@
-use dirs_next as dirs;
 use eframe::egui;
 use std::collections::HashMap;
 use std::fs;
@@ -16,10 +15,7 @@ pub struct SubscriptionManager {
 
 impl Default for SubscriptionManager {
     fn default() -> Self {
-        let rules_directory = dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("AppDataCleaner")
-            .join("rules");
+        let rules_directory = PathBuf::from("./rules");
 
         // 确保目录存在
         if let Err(e) = fs::create_dir_all(&rules_directory) {
@@ -39,6 +35,16 @@ impl Default for SubscriptionManager {
 }
 
 impl SubscriptionManager {
+    pub fn set_rules_directory(&mut self, directory: &str) {
+        let new_directory = PathBuf::from(directory);
+
+        if let Err(e) = fs::create_dir_all(&new_directory) {
+            eprintln!("无法创建规则目录: {}", e);
+        } else {
+            self.rules_directory = new_directory;
+        }
+    }
+
     pub fn show_window(&mut self, ctx: &egui::Context) {
         let mut is_open = self.is_open;
         if is_open {
