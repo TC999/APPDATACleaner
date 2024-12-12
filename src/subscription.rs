@@ -1,5 +1,8 @@
+use dirs_next as dirs;
 use eframe::egui;
 use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 
 pub struct SubscriptionManager {
     pub is_open: bool,
@@ -8,10 +11,21 @@ pub struct SubscriptionManager {
     pub download_status: Option<String>,        // 下载状态信息
     pub download_url: String,                   // 当前输入的下载链接
     pub start_download_request: bool,           // 标志是否触发下载
+    pub rules_directory: PathBuf,               // 规则文件存储目录
 }
 
 impl Default for SubscriptionManager {
     fn default() -> Self {
+        let rules_directory = dirs::data_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("AppDataCleaner")
+            .join("rules");
+
+        // 确保目录存在
+        if let Err(e) = fs::create_dir_all(&rules_directory) {
+            eprintln!("无法创建规则目录: {}", e);
+        }
+
         Self {
             is_open: false,
             subscriptions: HashMap::new(),
@@ -19,6 +33,7 @@ impl Default for SubscriptionManager {
             download_status: None,
             download_url: String::new(),
             start_download_request: false,
+            rules_directory,
         }
     }
 }
@@ -30,12 +45,10 @@ impl SubscriptionManager {
             egui::Window::new("订阅规则")
                 .open(&mut is_open)
                 .show(ctx, |ui| {
-                    // 直接在闭包内部渲染控件
-                    let start_download = self.render_controls(ui); // 传递 ui
+                    let start_download = self.render_controls(ui);
                     self.render_subscriptions(ui);
                     self.render_download_status(ui);
 
-                    // 在 UI 渲染完成后处理状态更新
                     if start_download {
                         self.handle_start_download();
                     }
@@ -111,15 +124,29 @@ impl SubscriptionManager {
         self.download_status = Some("开始下载...".to_string());
 
         // 模拟异步下载逻辑
-        self.simulate_download();
+        self.download_rule();
     }
 
-    fn simulate_download(&mut self) {
-        // 这里是模拟的下载过程，你可以改为异步任务
-        self.download_progress = Some(1.0); // 下载完成
-        self.download_status = Some("下载完成".to_string());
-        self.subscriptions
-            .insert("新规则".to_string(), "从网络下载".to_string());
+    fn download_rule(&mut self) {
+        let file_name = self
+            .download_url
+            .split('/')
+            .last()
+            .unwrap_or("default_rule.yaml");
+        let file_path = self.rules_directory.join(file_name);
+
+        // 模拟下载过程
+        self.download_progress = Some(1.0); // 模拟下载完成
+
+        if let Err(e) = fs::write(&file_path, "示例规则内容") {
+            self.download_status = Some(format!("下载失败: {}", e));
+        } else {
+            self.download_status = Some("下载完成".to_string());
+            self.subscriptions.insert(
+                file_name.to_string(),
+                format!("已保存到: {}", file_path.display()),
+            );
+        }
     }
 
     fn import_from_file(&mut self) {
