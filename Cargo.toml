@@ -15,6 +15,4 @@ sha2 = "0.10"
 native-dialog = "0.7.0"
 serde = { version = "1.0.216", features = ["derive"] }
 serde_yaml = "0.9.34+deprecated"
-serde_json = "1.0"
 reqwest = { version = "0.11", features = ["json"] }
-anyhow = "1.0"

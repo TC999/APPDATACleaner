@@ -1,68 +1,119 @@
 use crate::about;
+use crate::ai_config::{AIConfig, AIHandler};
 use crate::confirmation;
-use crate::delete;
 use crate::ignore;
-use crate::logger; // 导入 logger 模块
-use crate::move_module; // 导入移动模块
+use crate::logger;
+use crate::move_module;
 use crate::open;
 use crate::scanner;
 use crate::utils;
 use crate::yaml_loader::{load_folder_descriptions, FolderDescriptions};
 use eframe::egui::{self, Grid, ScrollArea};
 use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
 
 pub struct AppDataCleaner {
+    // 基础字段
     is_scanning: bool,
     current_folder: Option<String>,
     folder_data: Vec<(String, u64)>,
-    show_ai_config_window: bool,        // 新增字段,用于ai配置
-    ai_url: String,        // 新增字段,用于ai配置
-    ai_api_key: String,        // 新增字段,用于ai配置
-    ai_model: String,        // 新增字段,用于ai配置
-    show_about_window: bool,                // 确保字段存在
-    confirm_delete: Option<(String, bool)>, // 保存要确认删除的文件夹状态
-    selected_appdata_folder: String,        // 新增字段
+    selected_appdata_folder: String,
     tx: Option<Sender<(String, u64)>>,
     rx: Option<Receiver<(String, u64)>>,
-    is_logging_enabled: bool,             // 控制日志是否启用
-    previous_logging_state: bool,         // 记录上一次日志启用状态
-    ignored_folders: HashSet<String>,     // 忽略文件夹集合
-    move_module: move_module::MoveModule, // 移动模块实例
+    total_size: u64,
+
+    // 界面状态字段
+    show_about_window: bool,
+    show_ai_config_window: bool,     // AI配置窗口显示状态
+    show_prompt_editor: bool,        // Prompt编辑器显示状态 
+    confirm_delete: Option<(String, bool)>,
+    status: Option<String>,          // 状态信息
+
+    // 日志相关字段
+    is_logging_enabled: bool,
+    previous_logging_state: bool,
+
+    // 排序相关字段 
+    sort_criterion: Option<String>,  // 排序标准:"name"或"size"
+    sort_order: Option<String>,      // 排序顺序:"asc"或"desc"
+
+    // 文件夹描述相关
     folder_descriptions: Option<FolderDescriptions>,
-    yaml_error_logged: bool,        // 新增字段，用于标记是否已经记录过错误
-    status: Option<String>,         // 添加 status 字段
-    sort_criterion: Option<String>, // 新增字段，排序标准 "name" 或 "size"
-    sort_order: Option<String>,     // 新增字段，排序顺序 "asc" 或 "desc"
-    total_size: u64,                // 新增字段，总大小
+    yaml_error_logged: bool,
+    ignored_folders: HashSet<String>,
+
+    // 移动模块
+    move_module: move_module::MoveModule,
+
+    // AI相关配置
+    ai_config: AIConfig,
+    ai_tx: Option<Sender<(String, String, String)>>,
+    ai_rx: Option<Receiver<(String, String, String)>>,
+    ai_handler: Arc<Mutex<AIHandler>>, // 使用 Arc<Mutex<>> 包装 AIHandler
 }
 
 impl Default for AppDataCleaner {
     fn default() -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
+        let (ai_tx, ai_rx) = std::sync::mpsc::channel();
+        
+        // 加载AI配置
+        let ai_config = match AIConfig::load_from_file("folders_description.yaml") {
+            Ok(config) => {
+                logger::log_info("已成功加载AI配置文件");
+                config
+            }
+            Err(_) => {
+                logger::log_info("未找到配置文件，使用默认配置");
+                AIConfig::default()
+            }
+        };
+
+        // 创建 AIHandler 并包装在 Arc<Mutex<>> 中
+        let ai_handler = Arc::new(Mutex::new(AIHandler::new(
+            ai_config.clone(),
+            Some(ai_tx.clone())
+        )));
+
         Self {
+            // 基础字段初始化
             is_scanning: false,
             current_folder: None,
             folder_data: vec![],
-            show_ai_config_window: false,                       // 默认值
-            ai_url: String::new(),
-            ai_api_key: String::new(),
-            ai_model: String::new(),
-            show_about_window: false,                       // 默认值
-            confirm_delete: None,                           // 初始化为 None
-            selected_appdata_folder: "Roaming".to_string(), // 默认值为 Roaming
+            selected_appdata_folder: "Roaming".to_string(),
             tx: Some(tx),
             rx: Some(rx),
-            is_logging_enabled: false,     // 默认禁用日志
-            previous_logging_state: false, // 初始时假定日志系统未启用
-            ignored_folders: ignore::load_ignored_folders(),
-            move_module: Default::default(),
+            total_size: 0,
+
+            // 界面状态初始化
+            show_about_window: false,
+            show_ai_config_window: false,
+            show_prompt_editor: false,
+            confirm_delete: None,
+            status: Some("未扫描".to_string()),
+
+            // 日志相关初始化
+            is_logging_enabled: false,
+            previous_logging_state: false,
+
+            // 排序相关初始化
+            sort_criterion: None,
+            sort_order: None,
+
+            // 文件夹描述相关初始化
             folder_descriptions: None,
-            yaml_error_logged: false,           // 初始时假定未记录过错误
-            status: Some("未扫描".to_string()), // 初始化为 "未扫描"
-            sort_criterion: None,               // 初始化为 None
-            sort_order: None,                   // 初始化为 None
-            total_size: 0,                      // 初始化为 0
+            yaml_error_logged: false,
+            ignored_folders: ignore::load_ignored_folders(),
+
+            // 移动模块初始化
+            move_module: Default::default(),
+
+            // AI相关初始化
+            ai_handler,
+            ai_config,
+            ai_tx: Some(ai_tx),
+            ai_rx: Some(ai_rx),
         }
     }
 }
@@ -129,6 +180,24 @@ impl eframe::App for AppDataCleaner {
                 if ui.button("AI配置").clicked() {
                     self.show_ai_config_window = true;
                     ui.close_menu();
+                }
+                if ui.button("一键生成所有描述").clicked() {
+                    let folder_data = self.folder_data.clone();
+                    let selected_folder = self.selected_appdata_folder.clone();
+                    let handler = self.ai_handler.clone(); // 克隆Arc<Mutex<>>
+                    
+                    self.status = Some("正在生成描述...".to_string());
+                    
+                    std::thread::spawn(move || {
+                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        rt.block_on(async {
+                            if let Ok(mut handler) = handler.lock() {
+                                if let Err(e) = handler.generate_all_descriptions(folder_data, selected_folder).await {
+                                    logger::log_error(&format!("批量生成描述失败: {}", e));
+                                }
+                            }
+                        });
+                    });
                 }
             });
 
@@ -285,6 +354,24 @@ impl eframe::App for AppDataCleaner {
                                 }
                             }
                         }
+                        if ui.button("生成描述").clicked() {
+                            let folder_name = folder.clone();
+                            let selected_folder = self.selected_appdata_folder.clone();
+                            let handler = self.ai_handler.clone(); // 克隆Arc<Mutex<>>
+                            
+                            self.status = Some(format!("正在为 {} 生成描述...", folder_name));
+                            
+                            std::thread::spawn(move || {
+                                let rt = tokio::runtime::Runtime::new().unwrap();
+                                rt.block_on(async {
+                                    if let Ok(mut handler) = handler.lock() {
+                                        if let Err(e) = handler.generate_single_description(folder_name.clone(), selected_folder).await {
+                                            logger::log_error(&format!("生成描述失败: {}", e));
+                                        }
+                                    }
+                                });
+                            });
+                        }
                         ui.end_row();
                     }
                 });
@@ -301,58 +388,212 @@ impl eframe::App for AppDataCleaner {
             egui::Window::new("AI配置")
                 .resizable(true)
                 .collapsible(true)
+                .min_width(400.0)  // 添加最小宽度
+                .min_height(500.0) // 添加最小高度
                 .show(ctx, |ui| {
                     ui.heading("AI配置生成器");
 
-                    // URL 配置
-                    ui.horizontal(|ui| {
-                        ui.label("API地址：");
-                        ui.add(egui::TextEdit::singleline(&mut self.ai_url)
-                            .hint_text("输入API地址，例如：https://api.openai.com/v1"));
+                    // 基本配置
+                    ui.group(|ui| {  // 将基本配置也放入组中
+                        ui.heading("基本设置");
+                        ui.horizontal(|ui| {
+                            ui.label("配置名称：");
+                            ui.add(egui::TextEdit::singleline(&mut self.ai_config.name)
+                                .hint_text("输入配置名称")  // 添加提示文本
+                                .desired_width(200.0));     // 设置输入框宽度
+                        });
+                    });
+                    
+                    // API配置组
+                    ui.group(|ui| {
+                        ui.heading("API设置");
+                        ui.horizontal(|ui| {
+                            ui.label("API地址：");
+                            ui.add(egui::TextEdit::singleline(&mut self.ai_config.model.url)
+                                .hint_text("输入 API 地址，如 https://api.openai.com/v1")
+                                .desired_width(250.0));
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.label("API密钥：");
+                            ui.add(egui::TextEdit::singleline(&mut self.ai_config.model.api_key)
+                                .password(true)
+                                .hint_text("输入你的API密钥")
+                                .desired_width(250.0));
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.label("模型名称：");
+                            ui.add(egui::TextEdit::singleline(&mut self.ai_config.model.model)
+                                .hint_text("输入模型名称，如 gpt-3.5-turbo")
+                                .desired_width(250.0));
+                        });
                     });
 
-                    // API Key 配置
-                    ui.horizontal(|ui| {
-                        ui.label("API密钥：");
-                        // 使用 password 模式来隐藏 API key
-                        ui.add(egui::TextEdit::singleline(&mut self.ai_api_key)
-                            .password(true)
-                            .hint_text("输入API密钥"));
+                    // 重试配置组
+                    ui.group(|ui| {
+                        ui.heading("重试设置");
+                        ui.horizontal(|ui| {
+                            ui.label("重试次数：");
+                            ui.add(egui::DragValue::new(&mut self.ai_config.retry.attempts)
+                                .range(1..=10)  // 使用 range 替代 clamp_range
+                                .speed(1)
+                                .prefix("次数: "));
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.label("重试延迟：");
+                            ui.add(egui::DragValue::new(&mut self.ai_config.retry.delay)
+                                .range(1..=60)  // 使用 range 替代 clamp_range
+                                .speed(1)
+                                .suffix(" 秒"));
+                        });
                     });
 
-                    // Model 配置
-                    ui.horizontal(|ui| {
-                        ui.label("模型名称：");
-                        ui.add(egui::TextEdit::singleline(&mut self.ai_model)
-                            .hint_text("输入模型名称，例如：gpt-3.5-turbo"));
+                    // Prompt编辑器按钮
+                    ui.group(|ui| {
+                        ui.heading("Prompt设置");
+                        if ui.button("编辑Prompt模板").clicked() {
+                            self.show_prompt_editor = true;
+                        }
+                        // 显示当前prompt的预览
+                        ui.label("当前模板预览：");
+                        ui.add(egui::TextEdit::multiline(&mut self.ai_config.model.prompt.clone())
+                            .desired_width(f32::INFINITY)
+                            .desired_rows(3)
+                            .interactive(false));  // 使用 interactive(false) 替代 read_only
                     });
 
-                    // 添加保存和测试按钮
+                    ui.add_space(10.0);  // 添加一些间距
+
+                    // 按钮组
                     ui.horizontal(|ui| {
                         if ui.button("保存配置").clicked() {
-                            // TODO: 实现配置保存逻辑
-                            logger::log_info("AI配置已保存");
+                            match self.ai_config.validate() {
+                                Ok(_) => {
+                                    match AIConfig::get_config_path() {
+                                        Ok(config_path) => {
+                                            match self.ai_config.save_to_file(config_path.to_str().unwrap()) {
+                                                Ok(_) => {
+                                                    logger::log_info(&format!(
+                                                        "AI配置已保存到: {}",
+                                                        config_path.display()
+                                                    ));
+                                                    self.status = Some("配置已保存".to_string());
+                                                }
+                                                Err(err) => {
+                                                    logger::log_error(&format!(
+                                                        "保存配置失败: {}, 路径: {}", 
+                                                        err, 
+                                                        config_path.display()
+                                                    ));
+                                                    self.status = Some("保存配置失败".to_string());
+                                                }
+                                            }
+                                        }
+                                        Err(err) => {
+                                            logger::log_error(&format!("获取配置路径失败: {}", err));
+                                            self.status = Some("保存配置失败".to_string());
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    logger::log_error(&format!("配置验证失败: {}", err));
+                                    self.status = Some(format!("错误: {}", err));
+                                }
+                            }
                         }
 
                         if ui.button("测试连接").clicked() {
-                            // TODO: 实现API连接测试逻辑
-                            logger::log_info("正在测试AI连接...");
+                            let handler = self.ai_handler.clone(); // 克隆Arc<Mutex<>>
+                            
+                            tokio::runtime::Runtime::new()
+                                .unwrap()
+                                .block_on(async {
+                                    if let Ok(handler) = handler.lock() {
+                                        match handler.test_connection().await {
+                                            Ok(_) => {
+                                                logger::log_info("AI连接测试成功");
+                                                self.status = Some("AI连接测试成功".to_string());
+                                            }
+                                            Err(err) => {
+                                                logger::log_error(&format!("AI连接测试失败: {}", err));
+                                                self.status = Some(format!("AI连接测试失败: {}", err));
+                                            }
+                                        }
+                                    }
+                                });
+                        }
+
+                        if ui.button("重置默认值").clicked() {
+                            self.ai_config = AIConfig::default();
                         }
 
                         if ui.button("关闭").clicked() {
                             self.show_ai_config_window = false;
                         }
                     });
-
-                    // 显示配置状态
-                    ui.separator();
-                    ui.label("配置状态：");
-                    if self.ai_url.is_empty() || self.ai_api_key.is_empty() || self.ai_model.is_empty() {
-                        ui.colored_label(egui::Color32::RED, "⚠ 配置不完整");
-                    } else {
-                        ui.colored_label(egui::Color32::GREEN, "✓ 配置已完成");
-                    }
                 });
+        }
+
+        // Prompt编辑器窗口也添加边界
+        if self.show_prompt_editor {
+            egui::Window::new("Prompt模板编辑器")
+                .resizable(true)
+                .min_width(600.0)
+                .min_height(400.0)
+                .show(ctx, |ui| {
+                    ui.label("编辑Prompt模板：");
+                    ui.add_space(5.0);
+                    
+                    let mut prompt = self.ai_config.model.prompt.clone();
+                    ui.add(
+                        egui::TextEdit::multiline(&mut prompt)
+                            .desired_width(f32::INFINITY)
+                            .desired_rows(20)
+                            .font(egui::TextStyle::Monospace) // 使用等宽字体
+                    );
+                    self.ai_config.model.prompt = prompt;
+
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("保存").clicked() {
+                            self.show_prompt_editor = false;
+                        }
+                        if ui.button("重置默认值").clicked() {
+                            self.ai_config.model.prompt = AIConfig::default().model.prompt;
+                        }
+                        if ui.button("取消").clicked() {
+                            self.show_prompt_editor = false;
+                            self.ai_config.model.prompt = AIConfig::default().model.prompt;
+                        }
+                    });
+                });
+        }
+
+        // 在主循环中处理接收到的更新
+        if let Some(rx) = &self.ai_rx {
+            while let Ok((folder_type, folder_name, description)) = rx.try_recv() {
+                // 更新本地配置
+                match folder_type.as_str() {
+                    "Local" => { self.ai_config.Local.insert(folder_name.clone(), description.clone()); }
+                    "LocalLow" => { self.ai_config.LocalLow.insert(folder_name.clone(), description.clone()); }
+                    "Roaming" => { self.ai_config.Roaming.insert(folder_name.clone(), description.clone()); }
+                    _ => {}
+                };
+                
+                // 重新加载描述文件
+                if let Ok(config) = AIConfig::load_from_file("folders_description.yaml") {
+                    self.ai_config = config;
+                    self.folder_descriptions = load_folder_descriptions("folders_description.yaml", &mut self.yaml_error_logged);
+                    
+                    // 更新状态
+                    self.status = Some(format!("已更新 {} 的描述", folder_name));
+                    
+                    // 强制重绘
+                    ctx.request_repaint();
+                }
+            }
         }
 
         // 显示移动窗口

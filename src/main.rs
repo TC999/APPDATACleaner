@@ -9,6 +9,7 @@ mod scanner; // 引入扫盘模块
 mod ui; // 引入 ui 模块
 mod utils; // 文件夹大小计算模块
 mod yaml_loader; // 文件描述
+pub mod ai_config;  // 只需要保留这一行，使用 pub 使其可以被其他模块访问
 
 use ui::AppDataCleaner;
 
